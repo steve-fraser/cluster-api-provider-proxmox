@@ -143,7 +143,7 @@ func (c *APIClient) FindVMResource(ctx context.Context, vmID uint64) (*proxmox.C
 }
 
 // FindVMTemplateByTags tries to find a VMID by its tags across the whole cluster.
-func (c *APIClient) FindVMTemplateByTags(ctx context.Context, templateTags []string) (string, int32, error) {
+func (c *APIClient) FindVMTemplateByTags(ctx context.Context, templateTags []string, targetNode string) (string, int32, error) {
 	vmTemplates := make([]*proxmox.ClusterResource, 0)
 
 	sortedTags := make([]string, len(templateTags))
@@ -177,6 +177,18 @@ func (c *APIClient) FindVMTemplateByTags(ctx context.Context, templateTags []str
 
 		if slices.Equal(vmTags, uniqueTags) {
 			vmTemplates = append(vmTemplates, vm)
+		}
+	}
+
+	if len(vmTemplates) > 1 && targetNode != "" {
+		local := make([]*proxmox.ClusterResource, 0)
+		for _, t := range vmTemplates {
+			if t.Node == targetNode {
+				local = append(local, t)
+			}
+		}
+		if len(local) > 0 {
+			vmTemplates = local
 		}
 	}
 

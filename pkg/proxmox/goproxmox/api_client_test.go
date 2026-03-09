@@ -379,13 +379,14 @@ func TestProxmoxAPIClient_FindVMTemplateByTags(t *testing.T) {
 		&proxmox.ClusterResource{VMID: 150, Name: "template-without-tags", Node: "capmox01", Tags: "", Template: uint64(1)},
 		&proxmox.ClusterResource{VMID: 201, Name: "ubuntu-22.04-k8s-v1.28.3", Node: "capmox01", Tags: "template;capmox;v1.28.3", Template: uint64(1)},
 		&proxmox.ClusterResource{VMID: 202, Name: "ubuntu-22.04-k8s-v1.30.2", Node: "capmox02", Tags: "capmox;template;v1.30.2", Template: uint64(1)},
-		&proxmox.ClusterResource{VMID: 301, Name: "ubuntu-22.04-k8s-v1.29.2", Node: "capmox02", Tags: "capmox;template;v1.29.2", Template: uint64(1)},
+		&proxmox.ClusterResource{VMID: 301, Name: "ubuntu-22.04-k8s-v1.29.2", Node: "capmox01", Tags: "capmox;template;v1.29.2", Template: uint64(1)},
 		&proxmox.ClusterResource{VMID: 302, Name: "ubuntu-22.04-k8s-v1.29.2", Node: "capmox02", Tags: "capmox;template;v1.29.2", Template: uint64(1)},
 	}
 	tests := []struct {
 		name           string
 		http           []int
 		vmTags         []string
+		targetNode     string
 		fails          bool
 		err            string
 		vmTemplateNode string
@@ -467,6 +468,23 @@ func TestProxmoxAPIClient_FindVMTemplateByTags(t *testing.T) {
 			vmTemplateID:   69,
 			vmTemplateNode: "nice",
 		},
+		{
+			name:           "find-multiple-templates-prefer-local",
+			http:           []int{200, 200},
+			vmTags:         []string{"template", "capmox", "v1.29.2"},
+			targetNode:     "capmox02",
+			fails:          false,
+			vmTemplateNode: "capmox02",
+			vmTemplateID:   302,
+		},
+		{
+			name:           "find-multiple-templates-no-local-match",
+			http:           []int{200, 200},
+			vmTags:         []string{"template", "capmox", "v1.29.2"},
+			targetNode:     "capmox99",
+			fails:          true,
+			err:            "VM template not found: found 2 VM templates with tags \"template;capmox;v1.29.2\"",
+		},
 	}
 
 	for _, test := range tests {
@@ -478,7 +496,7 @@ func TestProxmoxAPIClient_FindVMTemplateByTags(t *testing.T) {
 			httpmock.RegisterResponder(http.MethodGet, `=~/cluster/resources`,
 				newJSONResponder(test.http[1], proxmoxClusterResources))
 
-			vmTemplateNode, vmTemplateID, err := client.FindVMTemplateByTags(context.Background(), test.vmTags)
+			vmTemplateNode, vmTemplateID, err := client.FindVMTemplateByTags(context.Background(), test.vmTags, test.targetNode)
 
 			if test.fails {
 				require.Error(t, err)
