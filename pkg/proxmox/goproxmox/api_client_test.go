@@ -478,12 +478,12 @@ func TestProxmoxAPIClient_FindVMTemplateByTags(t *testing.T) {
 			vmTemplateID:   302,
 		},
 		{
-			name:           "find-multiple-templates-no-local-match",
-			http:           []int{200, 200},
-			vmTags:         []string{"template", "capmox", "v1.29.2"},
-			targetNode:     "capmox99",
-			fails:          true,
-			err:            "VM template not found: found 2 VM templates with tags \"template;capmox;v1.29.2\"",
+			name:       "find-multiple-templates-no-local-match",
+			http:       []int{200, 200},
+			vmTags:     []string{"template", "capmox", "v1.29.2"},
+			targetNode: "capmox99",
+			fails:      true,
+			err:        "VM template not found: found 2 VM templates with tags \"template;capmox;v1.29.2\"",
 		},
 	}
 
