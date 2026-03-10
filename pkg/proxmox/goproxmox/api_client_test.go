@@ -491,6 +491,83 @@ func TestProxmoxAPIClient_FindVMTemplateByTags(t *testing.T) {
 	}
 }
 
+func TestProxmoxAPIClient_FindVMTemplateByTagsAndNode(t *testing.T) {
+	// Two nodes, each carrying a copy of the same template (same tags, different VMID/node).
+	proxmoxClusterResources := proxmox.ClusterResources{
+		&proxmox.ClusterResource{VMID: 201, Name: "ubuntu-template", Node: "pve-node-1", Tags: "capmox;ubuntu-2204", Template: uint64(1)},
+		&proxmox.ClusterResource{VMID: 202, Name: "ubuntu-template", Node: "pve-node-2", Tags: "capmox;ubuntu-2204", Template: uint64(1)},
+	}
+
+	tests := []struct {
+		name           string
+		http           []int
+		vmTags         []string
+		preferredNode  string
+		fails          bool
+		err            string
+		vmTemplateNode string
+		vmTemplateID   int32
+	}{
+		{
+			name:           "preferred-node-has-template-returns-local-copy",
+			http:           []int{200, 200},
+			vmTags:         []string{"capmox", "ubuntu-2204"},
+			preferredNode:  "pve-node-2",
+			fails:          false,
+			vmTemplateNode: "pve-node-2",
+			vmTemplateID:   202,
+		},
+		{
+			name:          "no-preferred-node-falls-back-to-cluster-wide-single-match",
+			http:          []int{200, 200},
+			vmTags:        []string{"capmox", "ubuntu-2204"},
+			preferredNode: "",
+			// Two matches cluster-wide → error (same as original FindVMTemplateByTags behaviour)
+			fails: true,
+			err:   "VM template not found: found 2 VM templates with tags \"capmox;ubuntu-2204\"",
+		},
+		{
+			name:          "preferred-node-has-no-template-falls-back-to-cluster-wide",
+			http:          []int{200, 200},
+			vmTags:        []string{"capmox", "ubuntu-2204"},
+			preferredNode: "pve-node-3",
+			// Two matches cluster-wide → error
+			fails: true,
+			err:   "VM template not found: found 2 VM templates with tags \"capmox;ubuntu-2204\"",
+		},
+		{
+			name:          "clusterstatus broken",
+			http:          []int{500, 200},
+			vmTags:        []string{"capmox", "ubuntu-2204"},
+			preferredNode: "pve-node-1",
+			fails:         true,
+			err:           "cannot get cluster status: 500",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client := newTestClient(t)
+
+			httpmock.RegisterResponder(http.MethodGet, `=~/cluster/status`,
+				newJSONResponder(test.http[0], proxmox.NodeStatuses{}))
+			httpmock.RegisterResponder(http.MethodGet, `=~/cluster/resources`,
+				newJSONResponder(test.http[1], proxmoxClusterResources))
+
+			node, id, err := client.FindVMTemplateByTagsAndNode(context.Background(), test.vmTags, test.preferredNode)
+
+			if test.fails {
+				require.Error(t, err)
+				require.Equal(t, test.err, err.Error())
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.vmTemplateNode, node)
+				require.Equal(t, test.vmTemplateID, id)
+			}
+		})
+	}
+}
+
 func TestProxmoxAPIClient_DeleteVM(t *testing.T) {
 	tests := []struct {
 		name  string

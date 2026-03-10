@@ -453,6 +453,71 @@ func (_c *MockClient_FindVMTemplateByTags_Call) RunAndReturn(run func(context.Co
 	return _c
 }
 
+// FindVMTemplateByTagsAndNode provides a mock function with given fields: ctx, templateTags, preferredNode
+func (_m *MockClient) FindVMTemplateByTagsAndNode(ctx context.Context, templateTags []string, preferredNode string) (string, int32, error) {
+	ret := _m.Called(ctx, templateTags, preferredNode)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindVMTemplateByTagsAndNode")
+	}
+
+	var r0 string
+	var r1 int32
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string, string) (string, int32, error)); ok {
+		return rf(ctx, templateTags, preferredNode)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string, string) string); ok {
+		r0 = rf(ctx, templateTags, preferredNode)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string, string) int32); ok {
+		r1 = rf(ctx, templateTags, preferredNode)
+	} else {
+		r1 = ret.Get(1).(int32)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, []string, string) error); ok {
+		r2 = rf(ctx, templateTags, preferredNode)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockClient_FindVMTemplateByTagsAndNode_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindVMTemplateByTagsAndNode'
+type MockClient_FindVMTemplateByTagsAndNode_Call struct {
+	*mock.Call
+}
+
+// FindVMTemplateByTagsAndNode is a helper method to define mock.On call
+//   - ctx context.Context
+//   - templateTags []string
+//   - preferredNode string
+func (_e *MockClient_Expecter) FindVMTemplateByTagsAndNode(ctx interface{}, templateTags interface{}, preferredNode interface{}) *MockClient_FindVMTemplateByTagsAndNode_Call {
+	return &MockClient_FindVMTemplateByTagsAndNode_Call{Call: _e.mock.On("FindVMTemplateByTagsAndNode", ctx, templateTags, preferredNode)}
+}
+
+func (_c *MockClient_FindVMTemplateByTagsAndNode_Call) Run(run func(ctx context.Context, templateTags []string, preferredNode string)) *MockClient_FindVMTemplateByTagsAndNode_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockClient_FindVMTemplateByTagsAndNode_Call) Return(_a0 string, _a1 int32, _a2 error) *MockClient_FindVMTemplateByTagsAndNode_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockClient_FindVMTemplateByTagsAndNode_Call) RunAndReturn(run func(context.Context, []string, string) (string, int32, error)) *MockClient_FindVMTemplateByTagsAndNode_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetReservableMemoryBytes provides a mock function with given fields: ctx, nodeName, nodeMemoryAdjustment
 func (_m *MockClient) GetReservableMemoryBytes(ctx context.Context, nodeName string, nodeMemoryAdjustment int64) (uint64, error) {
 	ret := _m.Called(ctx, nodeName, nodeMemoryAdjustment)

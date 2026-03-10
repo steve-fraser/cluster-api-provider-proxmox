@@ -144,8 +144,14 @@ func (c *APIClient) FindVMResource(ctx context.Context, vmID uint64) (*proxmox.C
 
 // FindVMTemplateByTags tries to find a VMID by its tags across the whole cluster.
 func (c *APIClient) FindVMTemplateByTags(ctx context.Context, templateTags []string) (string, int32, error) {
-	vmTemplates := make([]*proxmox.ClusterResource, 0)
+	return c.FindVMTemplateByTagsAndNode(ctx, templateTags, "")
+}
 
+// FindVMTemplateByTagsAndNode tries to find a VM template by its tags, preferring a match on
+// preferredNode when specified. If a matching template is found on preferredNode it is returned
+// immediately. Otherwise the search falls back to the cluster-wide behaviour of
+// FindVMTemplateByTags (exactly one match required).
+func (c *APIClient) FindVMTemplateByTagsAndNode(ctx context.Context, templateTags []string, preferredNode string) (string, int32, error) {
 	sortedTags := make([]string, len(templateTags))
 	for i, tag := range templateTags {
 		// Proxmox VM tags are always lowercase
@@ -164,6 +170,7 @@ func (c *APIClient) FindVMTemplateByTags(ctx context.Context, templateTags []str
 		return "", -1, fmt.Errorf("could not list vm resources: %w", err)
 	}
 
+	var clusterWide []*proxmox.ClusterResource
 	for _, vm := range vmResources {
 		if vm.Template == 0 {
 			continue
@@ -175,16 +182,23 @@ func (c *APIClient) FindVMTemplateByTags(ctx context.Context, templateTags []str
 		vmTags := strings.Split(vm.Tags, ";")
 		slices.Sort(vmTags)
 
-		if slices.Equal(vmTags, uniqueTags) {
-			vmTemplates = append(vmTemplates, vm)
+		if !slices.Equal(vmTags, uniqueTags) {
+			continue
 		}
+
+		// If there is a preferred node and this template lives on it, return immediately.
+		if preferredNode != "" && vm.Node == preferredNode {
+			return vm.Node, int32(vm.VMID), nil
+		}
+
+		clusterWide = append(clusterWide, vm)
 	}
 
-	if n := len(vmTemplates); n != 1 {
+	if n := len(clusterWide); n != 1 {
 		return "", -1, fmt.Errorf("%w: found %d VM templates with tags %q", ErrTemplateNotFound, n, strings.Join(templateTags, ";"))
 	}
 
-	return vmTemplates[0].Node, int32(vmTemplates[0].VMID), nil
+	return clusterWide[0].Node, int32(clusterWide[0].VMID), nil
 }
 
 // DeleteVM deletes a VM based on the nodeName and vmID.

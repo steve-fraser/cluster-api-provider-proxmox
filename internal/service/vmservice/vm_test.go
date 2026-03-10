@@ -175,7 +175,8 @@ func TestEnsureVirtualMachine_CreateVM_FullOptions_TemplateSelector(t *testing.T
 		Target:      "node2",
 	}
 
-	proxmoxClient.EXPECT().FindVMTemplateByTags(context.Background(), vmTemplateTags).Return("node1", 123, nil).Once()
+	// preferredNode is the already-selected target node ("node2")
+	proxmoxClient.EXPECT().FindVMTemplateByTagsAndNode(context.Background(), vmTemplateTags, "node2").Return("node1", 123, nil).Once()
 
 	response := proxmox.VMCloneResponse{NewID: 123, Task: newTask()}
 	proxmoxClient.EXPECT().CloneVM(context.Background(), 123, expectedOptions).Return(response, nil).Once()
@@ -187,6 +188,48 @@ func TestEnsureVirtualMachine_CreateVM_FullOptions_TemplateSelector(t *testing.T
 	require.Equal(t, "node2", *machineScope.ProxmoxMachine.Status.ProxmoxNode)
 	require.True(t, machineScope.InfraCluster.ProxmoxCluster.HasMachine(machineScope.Name(), false))
 	requireConditionIsFalse(t, machineScope.ProxmoxMachine, infrav1.VMProvisionedCondition)
+}
+
+func TestEnsureVirtualMachine_CreateVM_TemplateSelector_LocalityPreferred(t *testing.T) {
+	// Simulates the local-storage scenario: scheduler picks node2, template is on node2.
+	// FindVMTemplateByTagsAndNode should return node2's template immediately (early-return path).
+	vmTemplateTags := []string{"capmox-ubuntu-2204"}
+
+	machineScope, proxmoxClient, _ := setupReconcilerTestWithCondition(t, infrav1.WaitingForVirtualMachineConfigReason)
+	machineScope.ProxmoxMachine.Spec.VirtualMachineCloneSpec = infrav1.VirtualMachineCloneSpec{
+		TemplateSource: infrav1.TemplateSource{
+			TemplateSelector: &infrav1.TemplateSelector{
+				MatchTags: vmTemplateTags,
+			},
+		},
+	}
+	machineScope.InfraCluster.ProxmoxCluster.Spec.AllowedNodes = []string{"node1", "node2"}
+
+	selectNextNode = func(context.Context, *scope.MachineScope) (string, error) {
+		return "node2", nil
+	}
+	t.Cleanup(func() { selectNextNode = scheduler.ScheduleVM })
+
+	expectedOptions := proxmox.VMCloneRequest{
+		Node: "node2", // template is on the target node
+		Name: "test",
+		// Target is intentionally empty: Proxmox rejects an explicit target= when
+		// the source and destination are the same node with local storage.
+	}
+
+	// The locality-aware call returns node2's local template copy.
+	proxmoxClient.EXPECT().FindVMTemplateByTagsAndNode(context.Background(), vmTemplateTags, "node2").Return("node2", 456, nil).Once()
+
+	response := proxmox.VMCloneResponse{NewID: 456, Task: newTask()}
+	proxmoxClient.EXPECT().CloneVM(context.Background(), 456, expectedOptions).Return(response, nil).Once()
+
+	requeue, err := ensureVirtualMachine(context.Background(), machineScope)
+	require.NoError(t, err)
+	require.True(t, requeue)
+
+	// ProxmoxNode should still be recorded as node2 even though Target was cleared.
+	require.Equal(t, "node2", *machineScope.ProxmoxMachine.Status.ProxmoxNode)
+	require.True(t, machineScope.InfraCluster.ProxmoxCluster.HasMachine(machineScope.Name(), false))
 }
 
 func TestEnsureVirtualMachine_CreateVM_FullOptions_TemplateSelector_VMTemplateNotFound(t *testing.T) {
@@ -209,7 +252,7 @@ func TestEnsureVirtualMachine_CreateVM_FullOptions_TemplateSelector_VMTemplateNo
 	machineScope.ProxmoxMachine.Spec.Storage = ptr.To("storage")
 	machineScope.ProxmoxMachine.Spec.Target = ptr.To("node2")
 
-	proxmoxClient.EXPECT().FindVMTemplateByTags(context.Background(), vmTemplateTags).Return("", -1, goproxmox.ErrTemplateNotFound).Once()
+	proxmoxClient.EXPECT().FindVMTemplateByTagsAndNode(context.Background(), vmTemplateTags, "node2").Return("", -1, goproxmox.ErrTemplateNotFound).Once()
 
 	_, err := createVM(ctx, machineScope)
 

@@ -457,7 +457,18 @@ func createVM(ctx context.Context, scope *scope.MachineScope) (proxmox.VMCloneRe
 	if templateID == -1 {
 		var err error
 		templateSelectorTags := scope.ProxmoxMachine.GetTemplateSelectorTags()
-		options.Node, templateID, err = scope.InfraCluster.ProxmoxClient.FindVMTemplateByTags(ctx, templateSelectorTags)
+		// Prefer a template on the already-selected target node so that cloning
+		// stays node-local (required for local-storage setups without shared storage).
+		var templateNode string
+		templateNode, templateID, err = scope.InfraCluster.ProxmoxClient.FindVMTemplateByTagsAndNode(ctx, templateSelectorTags, options.Target)
+		options.Node = templateNode
+
+		// If the template lives on the target node, clear Target so Proxmox treats
+		// this as a local clone. An explicit target= on the same node triggers the
+		// "VM uses local storage" rejection.
+		if options.Target == templateNode {
+			options.Target = ""
+		}
 
 		if err != nil {
 			if errors.Is(err, goproxmox.ErrTemplateNotFound) {
