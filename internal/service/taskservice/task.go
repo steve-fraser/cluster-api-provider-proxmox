@@ -123,6 +123,11 @@ func checkAndRetryTask(scope *scope.MachineScope, task *proxmox.Task) (bool, err
 			conditionReason = infrav1.ProxmoxMachineVirtualMachineProvisionedTaskFailedReason
 		}
 
+		// GetReason returns "" if no condition is set yet; the API requires at least 1 char.
+		if conditionReason == "" {
+			conditionReason = infrav1.ProxmoxMachineVirtualMachineProvisionedTaskFailedReason
+		}
+
 		errorMessage := fmt.Sprintf("%s: %s", task.Type, task.ExitStatus)
 		if task.ExitStatus == "OK" {
 			// If you end up here, file a bug with go-proxmox.

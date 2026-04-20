@@ -201,6 +201,16 @@ func (m *MachineScope) PatchObject() error {
 		conditions.ForConditionTypes{infrav1.ProxmoxMachineVirtualMachineProvisionedCondition},
 	)
 
+	// Drop any conditions with an empty reason — these may have been persisted
+	// by an older version of the controller and would fail API validation.
+	sanitized := m.ProxmoxMachine.Status.Conditions[:0]
+	for _, c := range m.ProxmoxMachine.Status.Conditions {
+		if c.Reason != "" {
+			sanitized = append(sanitized, c)
+		}
+	}
+	m.ProxmoxMachine.Status.Conditions = sanitized
+
 	// Patch the ProxmoxMachine resource.
 	return m.patchHelper.Patch(
 		context.TODO(),

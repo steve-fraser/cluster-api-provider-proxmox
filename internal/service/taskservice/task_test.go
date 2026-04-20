@@ -261,6 +261,24 @@ func TestReconcileInFlightTask_TaskFailed_QMStart(t *testing.T) {
 	require.Equal(t, "WaitingForVMPowerUp", cond.Reason)
 }
 
+// Test ReconcileInflightTask on qmstart failure with no pre-existing condition (empty reason must not be set).
+func TestReconcileInFlightTask_TaskFailed_QMStart_NoExistingCondition(t *testing.T) {
+	machineScope, mockClient := setupTaskTest(t)
+	machineScope.ProxmoxMachine.Status.TaskRef = ptr.To("UPID:node1:001")
+
+	// No pre-existing condition — GetReason returns "", which must not be used as-is.
+	task := &proxmox.Task{UPID: "UPID:node1:001", IsFailed: true, IsCompleted: true, Status: "stopped", ExitStatus: "ERROR: VM already running", Type: "qmstart"}
+	mockClient.EXPECT().GetTask(context.Background(), "UPID:node1:001").Return(task, nil).Once()
+
+	requeue, err := ReconcileInFlightTask(context.Background(), machineScope)
+	require.NoError(t, err)
+	require.True(t, requeue)
+
+	cond := conditions.Get(machineScope.ProxmoxMachine, infrav1.ProxmoxMachineVirtualMachineProvisionedCondition)
+	require.NotNil(t, cond)
+	require.NotEmpty(t, cond.Reason, "condition reason must never be empty")
+}
+
 // Test ReconcileInflightTask on task failure switch case clears timed out task.
 func TestReconcileInFlightTask_TaskFailed_SecondPass_ClearsTaskRef(t *testing.T) {
 	machineScope, mockClient := setupTaskTest(t)

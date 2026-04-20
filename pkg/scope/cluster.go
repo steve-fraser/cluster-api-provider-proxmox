@@ -216,6 +216,16 @@ func (s *ClusterScope) PatchObject() error {
 		conditions.ForConditionTypes{infrav1.ProxmoxClusterProxmoxAvailableCondition},
 	)
 
+	// Drop any conditions with an empty reason — these may have been persisted
+	// by an older version of the controller and would fail API validation.
+	sanitized := s.ProxmoxCluster.Status.Conditions[:0]
+	for _, c := range s.ProxmoxCluster.Status.Conditions {
+		if c.Reason != "" {
+			sanitized = append(sanitized, c)
+		}
+	}
+	s.ProxmoxCluster.Status.Conditions = sanitized
+
 	return s.patchHelper.Patch(context.TODO(), s.ProxmoxCluster,
 		patch.WithOwnedConditions{Conditions: []string{
 			"Ready",
